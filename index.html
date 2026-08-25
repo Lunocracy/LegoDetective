@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Lego Detective</title>
+  <link rel="stylesheet" href="css/legoFun.css">
+  <script src="../Library/DomBasics.js"></script>
+  <script src="../Library/ThreeJSLoader.js"></script>
+  <script src="../Library/UITools.js"></script>
+  <script src="../Library/LunoLoader.js"></script>
+</head>
+<body style="margin:0; padding:0; background:#0d1117; color:#c9d1d9; font-family:monospace; min-height:100vh; overflow:hidden;">
+  <div id="app-root"></div>
+  <script>
+    document.addEventListener("DOMContentLoaded", async function() {
+      if (typeof LunoLoader !== "undefined") {
+        await LunoLoader.loadApp("app-root");
+      }
+    });
+  </script>
+</body>
+</html>

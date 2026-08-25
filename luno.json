@@ -1,0 +1,39 @@
+{
+  "name": "LegoDetective",
+  "version": "1.0.0",
+  "description": "3D Lego Detective Mystery Puzzle Game",
+  "type": "luno-web-app",
+  "mainClass": "LegoFun",
+  "entrypoint": {
+    "file": "src/LegoFun.js",
+    "class": "LegoFun",
+    "method": "run"
+  },
+  "main": [
+    "src/RandomUtils.js",
+    "src/StudGrid.js",
+    "src/VisibilityTester.js",
+    "src/SupportAnalyzer.js",
+    "src/LegoFactory.js",
+    "src/StructureBuilder.js",
+    "src/PuzzleMaker.js",
+    "src/PuzzleManager.js",
+    "src/LayoutManager.js",
+    "src/AnimationManager.js",
+    "src/GameUI.js",
+    "src/GameController.js",
+    "src/LegoFun.js"
+  ],
+  "library": [
+    "DomBasics.js",
+    "UITools.js",
+    "ThreeJSLoader.js"
+  ],
+  "styles": [
+    "css/legoFun.css"
+  ],
+  "processedCountSinceCheckpoint": 1,
+  "changedMethods": {
+    "LegoDetective/Luno/docs/RECURSI_TO_LUNO_MIGRATION_GUIDE.md": "2026-08-25T05:13:23.922Z"
+  }
+}
