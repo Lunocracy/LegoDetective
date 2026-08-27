@@ -1,82 +1,91 @@
 class GameUI {
   constructor(container, env) {
-      this.container = container || document.body;
-      this.env = env; // Save environment
-      this._injectStyles();
-      this._overlayTimeout = null;
+    this.container = container || document.body;
+    this.env = env;
+    this.isCollapsed = false;
+    this._msgFadeTimeout = null;
 
-      this.mascotClickCount = 0;
-      this.mascotClickTimeout = null;
-      this.disguiseIndex = -1;
-      
-      this.disguises = [
-        '/legos/disguises/groucho.png',
-        '/legos/disguises/monocle.png',
-        '/legos/disguises/vampire.png',
-        '/legos/disguises/super-sleuth.png',
-      ];
+    this._injectStyles();
 
-      this.panelMascot = makeElement('img', {
-        src: '/legos/detective.png',
-        className: 'detective-panel-mascot mascot-splash-mode',
-      });
+    const savedDifficulty = localStorage.getItem('legoDetectiveDifficulty');
+    const initialDifficulty = savedDifficulty !== null ? parseFloat(savedDifficulty) : 0.5;
 
-      const savedDifficulty = localStorage.getItem('legoDetectiveDifficulty');
-      const initialDifficulty = savedDifficulty !== null ? parseFloat(savedDifficulty) : 0.5;
-      this.scoreNode = makeElement('span', { id: 'score-value' }, '0');
-      const scoreContainer = makeElement('div', { className: 'score-container', style: { marginRight: '10px', display: 'flex', alignItems: 'center', gap: '5px' } }, 'Score: ', this.scoreNode);
+    // Magnifying glass detective SVG icon
+    this.detectiveIcon = makeElement('div', { className: 'detective-badge-icon', title: 'Lego Detective' }, [
+      makeElement('svg:svg', {
+        viewBox: '0 0 24 24',
+        width: '18',
+        height: '18',
+        style: { display: 'block', fill: 'none', stroke: '#58a6ff', strokeWidth: '2.5', strokeLinecap: 'round', strokeLinejoin: 'round' }
+      }, [
+        makeElement('svg:circle', { cx: '11', cy: '11', r: '7' }),
+        makeElement('svg:line', { x1: '21', y1: '21', x2: '16.65', y2: '16.65' }),
+        makeElement('svg:circle', { cx: '9', cy: '9', r: '2.2', style: { fill: 'rgba(88,166,255,0.45)', stroke: 'none' } })
+      ])
+    ]);
 
-      this.feedbackNode = makeElement('div', { className: 'message-area' });
-      this.instructionsBtn = makeElement('button', { className: 'instructions-btn', title: 'How to Play' }, '?');
+    this.titleNode = makeElement('span', { className: 'panel-app-title' }, 'Lego Detective');
 
-      const feedbackWrapper = makeElement('div', { className: 'feedback-wrapper' }, this.feedbackNode, this.instructionsBtn);
+    this.scoreNode = makeElement('span', { id: 'score-value' }, '0');
+    const scoreContainer = makeElement('div', { className: 'score-container' }, 'Score: ', this.scoreNode);
 
-      this.spinBtn = makeElement('button', {}, 'Stop Spin');
-      this.revealBtn = makeElement('button', {}, 'Cheat'); // Renamed from "Give Up?" to "Cheat"
-      const buttonGroup = makeElement('div', { className: 'button-group' }, this.spinBtn, this.revealBtn);
-      
-      this.difficultyLabel = makeElement('span', {});
-      this.difficultySlider = makeElement('input', { type: 'range', min: '0', max: '1', step: '0.01', value: initialDifficulty });
-      
-      const difficultyContainer = makeElement('div', { className: 'difficulty-container' }, this.difficultyLabel, this.difficultySlider);
+    this.toggleBtn = makeElement('button', { className: 'panel-toggle-btn', title: 'Toggle Controls Drawer' }, '▼');
 
-      this.uiContainer = makeElement('div', { id: 'game-ui' }, this.panelMascot, feedbackWrapper, difficultyContainer, buttonGroup);
-      
-      this.dialog = UITools.makeDialog({
-         env: this.env,
-         title: 'Lego Detective',
-         customHeaderControls: scoreContainer,
-         contentElement: this.uiContainer,
-         size: [340, 190],
-         position: [20, 20],
-         allowMaximize: false
-      });
+    // Swipe grab bar indicator
+    const swipeGrabHandle = makeElement('div', { className: 'swipe-grab-handle' });
 
-      this.overlayFeedbackNode = makeElement('div', { className: 'overlay-feedback' });
-      this.container.appendChild(this.overlayFeedbackNode);
-    }
+    // Header bar (always docked at bottom)
+    const headerLeft = makeElement('div', { className: 'panel-header-left' }, this.detectiveIcon, this.titleNode);
+    const headerRight = makeElement('div', { className: 'panel-header-right' }, scoreContainer, this.toggleBtn);
+    this.headerBar = makeElement('div', { className: 'bottom-panel-header' }, swipeGrabHandle, headerLeft, headerRight);
+
+    // Floating semi-transparent message pill (top center)
+    this.feedbackNode = makeElement('div', { className: 'subtle-message-pill' }, 'Find and click the one different brick.');
+
+    // Action buttons & controls
+    this.spinBtn = makeElement('button', { className: 'btn-action btn-spin' }, 'Stop Spin');
+    this.revealBtn = makeElement('button', { className: 'btn-action btn-cheat' }, 'Cheat');
+    this.instructionsBtn = makeElement('button', { className: 'btn-action btn-help', title: 'How to Play' }, '?');
+
+    const buttonGroup = makeElement('div', { className: 'button-group' }, this.spinBtn, this.revealBtn, this.instructionsBtn);
+
+    this.difficultyLabel = makeElement('span', { className: 'difficulty-label' }, 'Difficulty: Medium');
+    this.difficultySlider = makeElement('input', {
+      type: 'range',
+      min: '0',
+      max: '1',
+      step: '0.01',
+      value: initialDifficulty,
+      className: 'difficulty-slider'
+    });
+
+    const difficultyContainer = makeElement('div', { className: 'difficulty-container' }, this.difficultyLabel, this.difficultySlider);
+
+    this.panelBody = makeElement('div', { className: 'bottom-panel-body' }, difficultyContainer, buttonGroup);
+
+    // Main Bottom Panel Element
+    this.bottomPanel = makeElement('div', { id: 'bottom-control-panel' }, this.headerBar, this.panelBody);
+
+    this.container.appendChild(this.feedbackNode);
+    this.container.appendChild(this.bottomPanel);
+
+    this._bindTouchGestures();
+  }
 
   init(newPairCb, toggleSpinCb, revealCb) {
     this.spinBtn.onclick = () => toggleSpinCb?.();
     this.revealBtn.onclick = () => revealCb?.();
-    this.panelMascot.onclick = () => this.handleMascotClick();
     this.instructionsBtn.onclick = () => this.showInstructions();
 
-    const isFirstVisit = !localStorage.getItem('legoDetectiveFirstVisit');
-    if (isFirstVisit) {
-      setTimeout(() => {
-        this.showInstructions(() => {
-          if (this._isPhoneLikeScreen()) {
-            this._scheduleAutoCollapse();
-          }
-        });
-        localStorage.setItem('legoDetectiveFirstVisit', 'false');
-      }, 2200);
-    } else {
-      if (this._isPhoneLikeScreen()) {
-        this._scheduleAutoCollapse();
+    this.headerBar.onclick = (e) => {
+      if (e.target !== this.toggleBtn) {
+        this.toggleCollapse();
       }
-    }
+    };
+    this.toggleBtn.onclick = (e) => {
+      e.stopPropagation();
+      this.toggleCollapse();
+    };
 
     this.updateDifficultyLabel();
     this.difficultySlider.addEventListener('change', () => {
@@ -84,67 +93,67 @@ class GameUI {
       localStorage.setItem('legoDetectiveDifficulty', value);
       newPairCb?.();
     });
-    this.difficultySlider.addEventListener('input', () =>
-      this.updateDifficultyLabel()
-    );
-    this.setMessage('Find and click the one different brick.');
+    this.difficultySlider.addEventListener('input', () => this.updateDifficultyLabel());
+
     this.setSpinButtonLabel('Stop Spin');
     this.enableReveal(false);
 
-    setTimeout(() => {
-      this.uiContainer.style.opacity = '1';
-      this.uiContainer.style.transform = 'translateY(0)';
-    }, 100);
-  }
-
-  handleMascotClick() {
-    clearTimeout(this.mascotClickTimeout);
-    this.mascotClickCount++;
-
-    if (this.mascotClickCount >= 3) {
-      this.cycleDisguise();
-      this.mascotClickCount = 0;
-    } else {
-      this.mascotClickTimeout = setTimeout(() => {
-        if (this.mascotClickCount === 1) {
-          this.toggleCollapse();
-        }
-        this.mascotClickCount = 0;
-      }, 250); // 250ms window for multi-click
+    // Auto-collapse on small screens to give full canvas space
+    if (window.innerWidth < 640 || window.innerHeight < 680) {
+      this.setCollapsed(true);
     }
   }
 
-  cycleDisguise() {
-      this.disguiseIndex++;
-      if (this.disguiseIndex >= this.disguises.length) {
-        this.disguiseIndex = -1; // Back to original
-      }
+  _bindTouchGestures() {
+    let startY = 0;
+    let currentY = 0;
 
-      if (this.disguiseIndex === -1) {
-        // FIX: Replaced relative './detective.png' with absolute path
-        this.panelMascot.src = '/legos/detective.png'; 
-      } else {
-        this.panelMascot.src = this.disguises[this.disguiseIndex];
+    this.headerBar.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches.length === 1) {
+        startY = e.touches[0].clientY;
+        currentY = startY;
       }
+    }, { passive: true });
 
-      // Add a little animation to give feedback on the change
-      this.panelMascot.classList.remove('disguise-change');
-      void this.panelMascot.offsetWidth; // Trigger reflow
-      this.panelMascot.classList.add('disguise-change');
-      this.panelMascot.addEventListener(
-        'animationend',
-        () => {
-          this.panelMascot.classList.remove('disguise-change');
-        },
-        { once: true }
-      );
-    }
+    this.headerBar.addEventListener('touchmove', (e) => {
+      if (e.touches && e.touches.length === 1) {
+        currentY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    this.headerBar.addEventListener('touchend', () => {
+      const deltaY = currentY - startY;
+      if (deltaY > 25 && !this.isCollapsed) {
+        // Swiped down -> collapse
+        this.setCollapsed(true);
+      } else if (deltaY < -25 && this.isCollapsed) {
+        // Swiped up -> expand
+        this.setCollapsed(false);
+      }
+    }, { passive: true });
+  }
 
   toggleCollapse() {
-      if (this.dialog) {
-        this.dialog.toggleMinimize();
-      }
+    this.setCollapsed(!this.isCollapsed);
+  }
+
+  setCollapsed(collapsed) {
+    this.isCollapsed = collapsed;
+    if (this.bottomPanel) {
+      this.bottomPanel.classList.toggle('is-collapsed', this.isCollapsed);
+      this.toggleBtn.textContent = this.isCollapsed ? '▲' : '▼';
     }
+
+    // Trigger sequential resize frames so Three.js adapts seamlessly with CSS transitions
+    let start = performance.now();
+    const animateResize = () => {
+      window.dispatchEvent(new Event('resize'));
+      if (performance.now() - start < 260) {
+        requestAnimationFrame(animateResize);
+      }
+    };
+    requestAnimationFrame(animateResize);
+  }
 
   updateDifficultyLabel() {
     const value = parseFloat(this.difficultySlider.value);
@@ -165,27 +174,27 @@ class GameUI {
     if (this.difficultySlider) this.difficultySlider.disabled = !flag;
   }
 
-  setMessage(msg) {
-      if (this.feedbackNode) this.feedbackNode.textContent = msg;
+  setMessage(msg, autoHideMs = 3500) {
+    if (this.feedbackNode) {
+      clearTimeout(this._msgFadeTimeout);
+      this.feedbackNode.textContent = msg;
+      this.feedbackNode.style.opacity = '1';
+      this.feedbackNode.classList.remove('pulse-feedback');
+      void this.feedbackNode.offsetWidth;
+      this.feedbackNode.classList.add('pulse-feedback');
 
-      // Handle displaying a status overlay if the dialogue is minimized
-      if (this.dialog && this.dialog._minimized) {
-        if (this._overlayTimeout) {
-          clearTimeout(this._overlayTimeout);
-        }
-        this.overlayFeedbackNode.textContent = msg;
-        requestAnimationFrame(() => {
-          this.overlayFeedbackNode.classList.add('visible');
-        });
-        this._overlayTimeout = setTimeout(() => {
-          this.overlayFeedbackNode.classList.remove('visible');
-        }, 2500);
+      if (autoHideMs > 0) {
+        this._msgFadeTimeout = setTimeout(() => {
+          if (this.feedbackNode) {
+            this.feedbackNode.style.opacity = '0';
+          }
+        }, autoHideMs);
       }
     }
+  }
 
   setScore(score) {
     if (this.scoreNode) this.scoreNode.textContent = score;
-    if (this.collapsedScoreNode) this.collapsedScoreNode.textContent = score;
   }
 
   setSpinButtonLabel(txt) {
@@ -207,234 +216,297 @@ class GameUI {
     this.enableDifficultySlider(!flag);
   }
 
+  flashCheatButtonColor(hexColor, durationMs = 2500) {
+    if (!this.revealBtn) return;
+    const originalBg = this.revealBtn.style.backgroundColor;
+    const originalColor = this.revealBtn.style.color;
+
+    this.revealBtn.style.backgroundColor = hexColor;
+    const r = parseInt(hexColor.slice(1, 3), 16) || 0;
+    const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+    const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    this.revealBtn.style.color = luminance > 0.5 ? '#111' : '#fff';
+
+    setTimeout(() => {
+      this.revealBtn.style.backgroundColor = originalBg;
+      this.revealBtn.style.color = originalColor;
+    }, durationMs);
+  }
+
+  showCheatButtonText(text, durationMs = 3000) {
+    if (!this.revealBtn) return;
+    const originalText = this.revealBtn.textContent;
+    this.revealBtn.textContent = text;
+    this.revealBtn.style.fontSize = '11px';
+
+    setTimeout(() => {
+      this.revealBtn.textContent = originalText;
+      this.revealBtn.style.fontSize = '';
+    }, durationMs);
+  }
+
+  showSplash() {}
+  animateSplashToPanel() {}
+
   showInstructions(onCloseCallback = null) {
-      if (this.container.querySelector('.instructions-overlay')) return;
-      const template = document.getElementById('instructions-template');
-      
-      let content;
-      if (template) {
-        content = template.content.cloneNode(true);
-      } else {
-        // Fallback DOM creation if HTML template hasn't loaded yet
-        content = makeElement('div', { className: 'instructions-panel' }, 
-          makeElement('button', { className: 'instructions-close-btn' }, '×'),
-          makeElement('h2', {}, 'How to Play Lego Detective'),
-          makeElement('ul', {}, 
-            makeElement('li', {}, makeElement('strong', {}, 'Control the View:'), ' Drag with your mouse or finger to rotate the models. Use the scroll wheel or pinch to zoom.'),
-            makeElement('li', {}, makeElement('strong', {}, 'Find the Difference:'), ' Your goal is to find the one brick that has been moved, rotated, or is missing.'),
-            makeElement('li', {}, makeElement('strong', {}, 'Scoring:'), ' You get points for correct guesses but lose points for incorrect ones.'),
-            makeElement('li', {}, makeElement('strong', {}, 'Chain Reactions:'), ' Clicking the wrong brick can cause others to fall.'),
-            makeElement('li', {}, makeElement('strong', {}, 'Collapse the UI:'), ' Tap the detective mascot to collapse and expand this control panel.')
-          )
-        );
-      }
+    if (this.container.querySelector('.instructions-overlay')) return;
 
-      const overlay = makeElement(
-        'div',
-        { className: 'instructions-overlay' },
-        content
-      );
+    const content = makeElement('div', { className: 'instructions-panel' },
+      makeElement('button', { className: 'instructions-close-btn' }, '×'),
+      makeElement('h2', {}, 'How to Play Lego Detective'),
+      makeElement('ul', {},
+        makeElement('li', {}, makeElement('strong', {}, 'Control the View:'), ' Drag with mouse or finger to rotate the 3D models. Scroll or pinch to zoom.'),
+        makeElement('li', {}, makeElement('strong', {}, 'Find the Difference:'), ' Spot the one brick that has been moved, rotated, or removed.'),
+        makeElement('li', {}, makeElement('strong', {}, 'Scoring:'), ' Gain points for correct deductions, lose points on wrong guesses.'),
+        makeElement('li', {}, makeElement('strong', {}, 'Chain Reactions:'), ' Incorrect clicks can collapse unsupported structures.'),
+        makeElement('li', {}, makeElement('strong', {}, 'Slide Drawer:'), ' Tap the bottom bar or swipe up/down to slide the controls.')
+      )
+    );
 
-      const closePopup = () => {
-        overlay.classList.remove('visible');
-        overlay.addEventListener(
-          'transitionend',
-          () => {
-            overlay.remove();
-            if (onCloseCallback) onCloseCallback();
-          },
-          { once: true }
-        );
-      };
+    const overlay = makeElement('div', { className: 'instructions-overlay' }, content);
 
-      const closeBtn = overlay.querySelector('.instructions-close-btn');
-      if (closeBtn) closeBtn.onclick = closePopup;
-      
-      overlay.onclick = (e) => {
-        if (e.target === overlay) closePopup();
-      };
+    const closePopup = () => {
+      overlay.classList.remove('visible');
+      overlay.addEventListener('transitionend', () => {
+        overlay.remove();
+        if (onCloseCallback) onCloseCallback();
+      }, { once: true });
+    };
 
-      this.container.appendChild(overlay);
+    const closeBtn = overlay.querySelector('.instructions-close-btn');
+    if (closeBtn) closeBtn.onclick = closePopup;
+    overlay.onclick = (e) => {
+      if (e.target === overlay) closePopup();
+    };
 
-      requestAnimationFrame(() => {
-        setTimeout(() => overlay.classList.add('visible'), 10);
-      });
-    }
-
-  showSplash() {
-    this.panelMascot.classList.add('visible');
-  }
-
-  animateSplashToPanel() {
-    setTimeout(() => {
-      this.panelMascot.classList.remove('mascot-splash-mode');
-    }, 1000);
-  }
-
-  _isPhoneLikeScreen() {
-    const isVertical = window.innerHeight > window.innerWidth;
-    if (!this.uiContainer) return false;
-    const panelWidthRatio = this.uiContainer.offsetWidth / window.innerWidth;
-    return isVertical && panelWidthRatio > 0.6;
-  }
-
-  _scheduleAutoCollapse() {
-    setTimeout(() => {
-      if (this.isCollapsed) return;
-
-      this.toggleCollapse();
-      this.setMessage('Click Sherlock to bring the panel back.');
-    }, 3000);
+    this.container.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('visible'));
   }
 
   _injectStyles() {
     const css = `
-      ${this._getBaseStyles()}
-      ${this._getInstructionsStyles()}
-      ${this._getOverlayFeedbackStyles()}
+      #bottom-control-panel {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        background: rgba(18, 22, 28, 0.94);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        color: #c9d1d9;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        box-sizing: border-box;
+        transition: max-height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+        max-height: 220px;
+        flex-shrink: 0;
+        z-index: 100;
+        user-select: none;
+      }
+      #bottom-control-panel.is-collapsed {
+        max-height: 42px;
+      }
+      .bottom-panel-header {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 14px 8px 14px;
+        min-height: 42px;
+        box-sizing: border-box;
+        cursor: pointer;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .bottom-panel-header:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .swipe-grab-handle {
+        position: absolute;
+        top: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 32px;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+        pointer-events: none;
+      }
+      .panel-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .detective-badge-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .panel-app-title {
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #e6edf3;
+      }
+      .panel-header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .score-container {
+        font-size: 13px;
+        font-weight: 600;
+        color: #8b949e;
+      }
+      #score-value {
+        color: #3fb950;
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .panel-toggle-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #c9d1d9;
+        border-radius: 4px;
+        width: 26px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 11px;
+        transition: background 0.15s;
+      }
+      .panel-toggle-btn:hover {
+        background: rgba(255, 255, 255, 0.18);
+      }
+      .bottom-panel-body {
+        padding: 8px 14px 14px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow: hidden;
+      }
+      .button-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr 40px;
+        gap: 8px;
+      }
+      .btn-action {
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 9px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.08);
+        color: #f0f6fc;
+        transition: background 0.15s, transform 0.1s;
+      }
+      .btn-action:hover {
+        background: rgba(255, 255, 255, 0.16);
+      }
+      .btn-action:active {
+        transform: scale(0.97);
+      }
+      .btn-action:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn-spin {
+        background: #238636;
+        border-color: #2ea043;
+      }
+      .btn-spin:hover {
+        background: #2ea043;
+      }
+      .btn-cheat {
+        background: #8957e5;
+        border-color: #a371f7;
+      }
+      .btn-cheat:hover {
+        background: #a371f7;
+      }
+      .btn-help {
+        font-weight: 800;
+        font-size: 15px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .difficulty-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .difficulty-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #8b949e;
+        white-space: nowrap;
+      }
+      .difficulty-slider {
+        flex: 1;
+        cursor: pointer;
+        accent-color: #58a6ff;
+      }
+      /* Subtle transparent floating message pill */
+      .subtle-message-pill {
+        position: absolute;
+        top: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(13, 17, 23, 0.76);
+        color: #f0f6fc;
+        padding: 7px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        pointer-events: none;
+        z-index: 90;
+        text-align: center;
+        max-width: 88%;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+        transition: opacity 0.35s ease, transform 0.25s ease;
+      }
+      .subtle-message-pill.pulse-feedback {
+        animation: pill-pulse 0.3s ease-out;
+      }
+      @keyframes pill-pulse {
+        0% { transform: translateX(-50%) scale(0.96); }
+        50% { transform: translateX(-50%) scale(1.04); }
+        100% { transform: translateX(-50%) scale(1); }
+      }
+      /* Help modal overlay */
+      .instructions-overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.65);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 10000; opacity: 0; transition: opacity 0.2s ease; cursor: pointer;
+      }
+      .instructions-overlay.visible { opacity: 1; }
+      .instructions-panel {
+        background: #161b22; color: #c9d1d9; padding: 1.5rem 2rem;
+        border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 16px 48px rgba(0,0,0,0.8); max-width: 500px; width: 88%;
+        max-height: 85vh; overflow-y: auto; position: relative; cursor: default;
+      }
+      .instructions-panel h2 { margin-top: 0; color: #58a6ff; font-size: 1.25rem; }
+      .instructions-panel ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.85rem; font-size: 13px; }
+      .instructions-panel li { line-height: 1.5; }
+      .instructions-panel strong { color: #3fb950; }
+      .instructions-close-btn {
+        position: absolute; top: 12px; right: 12px; background: transparent;
+        border: none; color: #8b949e; font-size: 1.5rem; line-height: 1;
+        cursor: pointer; padding: 4px;
+      }
+      .instructions-close-btn:hover { color: #fff; }
     `;
-    applyCss(css, 'game-ui-styles');
+    applyCss(css, 'lego-detective-ui-styles');
   }
-
-  _getBaseStyles() {
-      // Stripped out all hardcoded absolute/fixed transforms. UITools manages position and visibility now.
-      return `
-        @keyframes disguise-shake {
-          10%, 90% { transform: translate3d(-1px, 0, 0) scale(1.1) rotate(-5deg); }
-          20%, 80% { transform: translate3d(2px, 0, 0) scale(1.1) rotate(5deg); }
-          30%, 50%, 70% { transform: translate3d(-4px, 0, 0) scale(1.1) rotate(-5deg); }
-          40%, 60% { transform: translate3d(4px, 0, 0) scale(1.1) rotate(5deg); }
-        }
-        .disguise-change {
-          animation: disguise-shake 0.82s cubic-bezier(.36,.07,.19,.97) both;
-        }
-        #game-ui {
-          display: flex; flex-direction: column; gap: 16px; position: relative;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-          width: 100%;
-        }
-        .detective-panel-mascot {
-          position: absolute;
-          top: 4px; left: 4px; width: 75px; height: auto;
-          cursor: pointer; z-index: 20;
-          transition: transform 0.2s ease;
-        }
-        .detective-panel-mascot.mascot-splash-mode {
-          position: fixed;
-          top: 50%; left: 50%;
-          width: 300px;
-          transform: translate(-50%, -50%) scale(1);
-          opacity: 0;
-          pointer-events: none;
-          z-index: 99999;
-        }
-        .detective-panel-mascot.visible { opacity: 1; }
-        .detective-panel-mascot:not(.mascot-splash-mode):hover { transform: scale(1.1) rotate(-5deg); }
-        
-        .feedback-wrapper { position: relative; flex-shrink: 0; margin-top: 10px; }
-        .score-container { font-size: 14px; font-weight: 500; color: #a0a0a0; }
-        #score-value { font-weight: 700; color: #4ec9b0; font-size: 16px; margin-left: 5px; }
-        .message-area { min-height: 44px; padding: 10px 12px; padding-right: 30px; background-color: rgba(0,0,0,0.2); border-radius: 6px; text-align: center; display: flex; align-items: center; justify-content: center; }
-        .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .difficulty-container { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: #c0c0c0; }
-        #game-ui button { font-family: inherit; font-size: 14px; font-weight: 500; padding: 10px; border: none; border-radius: 6px; cursor: pointer; transition: background-color 0.2s ease, transform 0.1s ease; background-color: rgba(255, 255, 255, 0.1); color: #ffffff; font-weight: bold; background-color: #238636; border: 1px solid #3fb950; border: 1px solid rgba(255, 255, 255, 0.2); }
-        #game-ui button:hover { background-color: rgba(255, 255, 255, 0.2); }
-        #game-ui button:active { transform: scale(0.97); }
-        #game-ui button:disabled { background-color: rgba(50, 50, 50, 0.5); color: #888; cursor: not-allowed; border-color: rgba(100, 100, 100, 0.5); }
-        .instructions-btn {
-          position: absolute; top: 50%; right: 8px;
-          transform: translateY(-50%);
-          width: auto; height: auto; padding: 4px 6px;
-          font-size: 18px; font-weight: bold; color: #999;
-          background: none; border: none; z-index: 1;
-        }
-        .instructions-btn:hover { color: #fff; }
-      `;
-    }
-
-  _getInstructionsStyles() {
-      return `
-        .instructions-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 10000; opacity: 0; transition: opacity 0.3s ease-in-out; cursor: pointer; }
-        .instructions-overlay.visible { opacity: 1; }
-        .instructions-panel { background: #282c34; color: #abb2bf; padding: 2rem 2.5rem; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; position: relative; cursor: default; transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .instructions-overlay.visible .instructions-panel { transform: scale(1); }
-        .instructions-panel h2 { margin-top: 0; color: #61afef; text-align: center; margin-bottom: 1.5rem; }
-        .instructions-panel ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1.2rem; }
-        .instructions-panel li { line-height: 1.6; }
-        .instructions-panel strong { color: #98c379; font-weight: 600; }
-        .instructions-close-btn { position: absolute; top: 15px; right: 15px; background: transparent; border: none; color: #666; font-size: 2rem; font-weight: 200; line-height: 1; cursor: pointer; padding: 5px; transition: color 0.2s, transform 0.2s; }
-        .instructions-close-btn:hover { color: #fff; transform: rotate(90deg); }
-      `;
-    }
-
-  _getOverlayFeedbackStyles() {
-      return `
-        .overlay-feedback {
-          position: absolute;
-          top: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          padding: 10px 20px;
-          background-color: rgba(25, 28, 32, 0.85);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 8px;
-          color: #ffffff; font-weight: bold; background-color: #238636; border: 1px solid #3fb950;
-          font-size: 18px;
-          font-weight: 500;
-          z-index: 2000;
-          pointer-events: none;
-          opacity: 0;
-          transition: opacity 0.4s ease-in-out, top 0.4s ease-in-out;
-        }
-        .overlay-feedback.visible { opacity: 1; top: 40px; }
-      `;
-    }
-
-
-  flashCheatButtonColor(hexColor, durationMs = 2500) {
-      if (!this.revealBtn) return;
-
-      const originalBg = this.revealBtn.style.backgroundColor;
-      const originalBorder = this.revealBtn.style.borderColor;
-      const originalColor = this.revealBtn.style.color;
-      const originalShadow = this.revealBtn.style.boxShadow;
-
-      // Apply target hex color
-      this.revealBtn.style.backgroundColor = hexColor;
-      this.revealBtn.style.borderColor = 'rgba(255, 255, 255, 0.4)';
-      this.revealBtn.style.boxShadow = `0 0 12px ${hexColor}`;
-
-      // Adjust text color dynamically for readability depending on brightness
-      const r = parseInt(hexColor.slice(1, 3), 16);
-      const g = parseInt(hexColor.slice(3, 5), 16);
-      const b = parseInt(hexColor.slice(5, 7), 16);
-      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-      this.revealBtn.style.color = luminance > 0.5 ? '#111' : '#fff';
-
-      setTimeout(() => {
-        this.revealBtn.style.backgroundColor = originalBg;
-        this.revealBtn.style.borderColor = originalBorder;
-        this.revealBtn.style.color = originalColor;
-        this.revealBtn.style.boxShadow = originalShadow;
-      }, durationMs);
-    }
-
-  showCheatButtonText(text, durationMs = 3000) {
-      if (!this.revealBtn) return;
-
-      const originalText = this.revealBtn.textContent;
-      const originalFontSize = this.revealBtn.style.fontSize;
-
-      this.revealBtn.textContent = text;
-      this.revealBtn.style.fontSize = '11px'; // Small text as requested
-
-      setTimeout(() => {
-        this.revealBtn.textContent = originalText;
-        this.revealBtn.style.fontSize = originalFontSize;
-      }, durationMs);
-    }
 }
 
 globalThis.GameUI = GameUI;

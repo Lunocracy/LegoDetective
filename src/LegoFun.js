@@ -10,7 +10,7 @@ class LegoFun {
 
   onResize(width, height) {
     if (!width || !height) {
-      const rect = this.rootElement ? this.rootElement.getBoundingClientRect() : null;
+      const rect = this.canvasContainer ? this.canvasContainer.getBoundingClientRect() : null;
       if (rect) {
         width = rect.width;
         height = rect.height;
@@ -41,7 +41,7 @@ class LegoFun {
     const dist = Math.hypot(dx, dy);
     const elapsed = performance.now() - this._pointerDownPos.time;
 
-    // Only pick if it's a direct tap (< 6px movement and < 400ms duration)
+    // Only pick on direct tap (< 6px drag and < 400ms duration)
     if (dist > 6 || elapsed > 400) {
       return;
     }
@@ -84,26 +84,28 @@ class LegoFun {
     parentElement.style.margin = '0';
     parentElement.style.padding = '0';
     parentElement.style.overflow = 'hidden';
-    parentElement.style.background = '#222';
+    parentElement.style.background = '#0d1117';
+    parentElement.style.display = 'flex';
+    parentElement.style.flexDirection = 'column';
 
     const canvasId = 'canvas-container-' + Math.random().toString(36).slice(2);
-    const canvasContainer = makeElement('div', {
+    this.canvasContainer = makeElement('div', {
       id: canvasId,
       style: {
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        right: '0',
-        bottom: '0',
+        flex: '1 1 auto',
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        minHeight: '0',
         overflow: 'hidden',
-        background: '#222',
+        background: '#0d1117',
       },
     });
-    parentElement.appendChild(canvasContainer);
-    this.rootElement = canvasContainer;
+    parentElement.appendChild(this.canvasContainer);
+    this.rootElement = this.canvasContainer;
 
     if (
-      !parentElement._vibesAppResizeObserver &&
+      !this.canvasContainer._appResizeObserver &&
       typeof ResizeObserver !== 'undefined'
     ) {
       const ro = new ResizeObserver((entries) => {
@@ -113,8 +115,8 @@ class LegoFun {
           }
         }
       });
-      ro.observe(parentElement);
-      parentElement._vibesAppResizeObserver = ro;
+      ro.observe(this.canvasContainer);
+      this.canvasContainer._appResizeObserver = ro;
     }
 
     this.app = new ThreeJSLoader(canvasId, {
@@ -123,7 +125,7 @@ class LegoFun {
       hdrPath: null
     });
 
-    await this.app.init(canvasContainer);
+    await this.app.init(this.canvasContainer);
 
     if (this.app.scene) {
       this.app.scene.background = null;
@@ -176,7 +178,7 @@ class LegoFun {
     this._onResizeBound = () => this.onResize();
     window.addEventListener('resize', this._onResizeBound, false);
 
-    const initialRect = parentElement.getBoundingClientRect();
+    const initialRect = this.canvasContainer.getBoundingClientRect();
     if (initialRect.width > 0 && initialRect.height > 0) {
       this.onResize(initialRect.width, initialRect.height);
     }
@@ -203,24 +205,29 @@ class LegoFun {
         this.app.renderer.domElement.removeEventListener('pointerup', this._onPointerUpBound, false);
       }
     }
+    if (this.canvasContainer && this.canvasContainer._appResizeObserver) {
+      this.canvasContainer._appResizeObserver.disconnect();
+      this.canvasContainer._appResizeObserver = null;
+    }
     if (this.app && typeof this.app.destroy === 'function') {
       try { this.app.destroy(); } catch(e) {}
     }
     this.app = null;
 
     if (this.gameUI) {
-      if (this.gameUI.dialog && typeof this.gameUI.dialog.close === 'function') {
-        try { this.gameUI.dialog.close(); } catch(e) {}
+      if (this.gameUI.bottomPanel) {
+        this.gameUI.bottomPanel.remove();
       }
-      if (this.gameUI.overlayFeedbackNode) {
-        this.gameUI.overlayFeedbackNode.remove();
+      if (this.gameUI.feedbackNode) {
+        this.gameUI.feedbackNode.remove();
       }
       this.gameUI = null;
     }
 
-    if (this.rootElement && this.rootElement.parentElement) {
-      this.rootElement.remove();
+    if (this.canvasContainer && this.canvasContainer.parentElement) {
+      this.canvasContainer.remove();
     }
+    this.canvasContainer = null;
     this.rootElement = null;
     this.gameController = null;
   }
