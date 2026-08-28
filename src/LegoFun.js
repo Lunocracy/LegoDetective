@@ -41,7 +41,6 @@ class LegoFun {
     const dist = Math.hypot(dx, dy);
     const elapsed = performance.now() - this._pointerDownPos.time;
 
-    // Only pick on direct tap (< 6px drag and < 400ms duration)
     if (dist > 6 || elapsed > 400) {
       return;
     }
@@ -131,21 +130,21 @@ class LegoFun {
       this.app.scene.background = null;
     }
 
-    // Studio lights for crisp visibility
+    // Clean neutral studio lights to keep Lego colors pure and vibrant
     const THREE = this.app.THREE;
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 1.0);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x22272e, 1.1);
     hemiLight.position.set(0, 500, 0);
     this.app.scene.add(hemiLight);
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
     keyLight.position.set(200, 400, 200);
     this.app.scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0x58a6ff, 0.7);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.7);
     fillLight.position.set(-200, 200, -200);
     this.app.scene.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight(0x00f2fe, 0.6);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
     rimLight.position.set(0, 300, -300);
     this.app.scene.add(rimLight);
 

@@ -65,9 +65,17 @@ class GameController {
       { item: [2, 10], weight: 1 },
       { item: [4, 6], weight: 1 },
     ];
+
+    // Clean, vibrant iconic Lego plastic colors (no brown, no black)
     this.colorPool = [
-      0xc91a09, 0x0055bf, 0xf2cd37, 0x237841, 0x00838f, 0xff800d, 0x6b3e18,
-      0x05131d, 0xdf6695, 0x4b0082,
+      0xee272c, // Bright Red
+      0xffd700, // Bright Yellow
+      0xff7e14, // Bright Orange
+      0x0055bf, // Classic Blue
+      0x009a44, // Bright Green
+      0x20b2e8, // Sky Blue
+      0x8a2be2, // Bright Purple
+      0xf03a8d, // Bright Magenta / Pink
     ];
 
     this.puzzleManager = new PuzzleManager({
@@ -208,7 +216,9 @@ class GameController {
               -this.speedB,
               easedK
             );
-          } else if (this._relativeSpinState === 'contracting') {
+          } else if (
+            this._relativeSpinState === 'contracting'
+          ) {
             currentSpeedB = -this.speedB;
           }
           this.pivotA.rotation.y += this.orbitalSpeedA * dt;
@@ -266,7 +276,6 @@ class GameController {
         pulseCount: 4,
       });
 
-      // Delay message slightly so user watches the celebratory flash first
       setTimeout(() => {
         this.ui.setScore(this.score);
         this.ui.setMessage(`Correct! +${this.rewards.correct} points.`, 2200);
@@ -278,7 +287,6 @@ class GameController {
         this._getChainReactionTargets(clickedRec);
       this._activeAnimations = doomedBricks.length;
 
-      // Trigger destruction animations immediately
       doomedBricks.forEach((brick, index) =>
         this._triggerChainReactionAnimation(brick, index * 120)
       );
@@ -288,7 +296,6 @@ class GameController {
         this.score -= this.penalties.chainReactionDestroysCorrect;
         this.ui.disableAllButtons(true);
 
-        // Delay message so user can watch the destruction cascade first
         setTimeout(() => {
           this.ui.setScore(this.score);
           this.ui.setMessage(
@@ -307,7 +314,6 @@ class GameController {
           doomedBricks.length - this.rewards.chainReactionBonusThreshold
         );
 
-        // Delay score/message update so the tumbling bricks are observed first
         setTimeout(() => {
           if (bonus > 0) {
             this.score += bonus;
