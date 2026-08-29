@@ -10,6 +10,7 @@
     "method": "run"
   },
   "main": [
+    "src/SoundFX.js",
     "src/RandomUtils.js",
     "src/StudGrid.js",
     "src/VisibilityTester.js",
@@ -32,15 +33,23 @@
   "styles": [
     "css/legoFun.css"
   ],
-  "processedCountSinceCheckpoint": 2,
+  "processedCountSinceCheckpoint": 10,
   "changedMethods": {
     "LegoDetective/Luno/docs/RECURSI_TO_LUNO_MIGRATION_GUIDE.md": "2026-08-25T05:13:23.922Z",
-    "LegoDetective/src/GameUI.js": "2026-08-27T00:44:19.980Z",
-    "LegoDetective/src/LegoFun.js": "2026-08-28T01:30:51.524Z",
-    "LegoDetective/src/GameController.js": "2026-08-28T01:30:51.524Z",
-    "Luno/app/LunoCssChunks.js": "2026-08-28T01:23:46.902Z",
-    "Luno/app/LunoThemeEngine.js": "2026-08-28T01:23:46.902Z"
+    "LegoDetective/src/GameUI.js": "2026-08-28T09:00:00.000Z",
+    "LegoDetective/src/LegoFun.js": "2026-08-28T09:00:00.000Z",
+    "LegoDetective/src/GameController.js": "2026-08-28T21:55:56.739Z",
+    "LegoDetective/src/SoundFX.js": "2026-08-28T21:46:44.597Z",
+    "LegoDetective/src/AnimationManager.js": "2026-08-28T22:00:57.846Z",
+    "LegoDetective/css/legoFun.css": "2026-08-28T05:38:30.751Z",
+    "LegoDetective/index.html": "2026-08-28T05:38:30.751Z",
+    "LegoDetective/files.json": "2026-08-28T08:59:16.871Z",
+    "LegoDetective/luno.json": "2026-08-28T08:59:16.871Z",
+    "Library/GlowPiano.js": "2026-08-28T10:13:10.458Z",
+    "guessTheNoteGame/library/GlowPiano.js": "2026-08-28T10:13:10.458Z",
+    "guessTheNoteGame/js/Piano.js": "2026-08-28T10:13:10.458Z",
+    "LegoDetective/src/PuzzleManager.js": "2026-08-28T22:00:57.846Z"
   },
-  "lastCheckpointTime": "2026-08-28T01:24:23.381Z",
+  "lastCheckpointTime": "2026-08-28T09:10:15.383Z",
   "pendingCheckpointDescription": "Clean working tree"
 }

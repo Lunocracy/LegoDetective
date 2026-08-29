@@ -23,6 +23,7 @@ class PuzzleManager {
     this.diffInfo = null;
     this.diffMeshes = [];
   }
+
   buildNewPuzzle(difficulty) {
     this._cloneById.clear();
     this.diffInfo = null;
@@ -98,6 +99,7 @@ class PuzzleManager {
       diffMeshes: this.diffMeshes,
     };
   }
+
   _buildFullStructure(bounds, target) {
     let placed = 0;
     let fails = 0;
@@ -113,18 +115,16 @@ class PuzzleManager {
       else fails++;
     }
   }
+
   _chooseAndApplyDifference(bounds) {
     const candidates = [];
     for (const rec of this.builderA.bricks) {
       if (rec.width * rec.length < 2) continue;
       const isBuried = this._hasAbove(this.builderA.grid, rec);
-      if (
-        isBuried &&
-        Math.random() > this.diffConfig.allowBuriedDifferenceChance
-      ) {
+      if (isBuried && Math.random() > this.diffConfig.allowBuriedDifferenceChance) {
         continue;
       }
-      candidates.push({ rec, area: rec.width * rec.length });
+      candidates.push({ rec, area: rec.width * rec.length, isBuried });
     }
 
     if (candidates.length === 0) {
@@ -135,22 +135,22 @@ class PuzzleManager {
 
     let success = false;
     let attempts = 0;
-    const maxAttempts = 20;
+    const maxAttempts = 35;
 
     while (!success && attempts < maxAttempts) {
       attempts++;
       let chosenRec;
-      if (Math.random() < 0.3) {
-        chosenRec =
-          candidates[Math.floor(Math.random() * candidates.length)].rec;
+      if (Math.random() < 0.25) {
+        chosenRec = candidates[Math.floor(Math.random() * candidates.length)].rec;
       } else {
         let totalW = 0;
-        const weights = candidates.map(({ rec, area }) => {
+        const weights = candidates.map(({ rec, area, isBuried }) => {
           let w = Math.pow(area, 0.8);
           const [w_, l_] = [rec.width, rec.length].sort((a, b) => a - b);
           if (w_ === 2 && l_ === 4) w *= 2.0;
           else if (w_ === 2 && l_ === 3) w *= 1.5;
           else if (w_ === 2 && l_ === 2) w *= 1.2;
+          if (isBuried) w *= 0.3;
           totalW += w;
           return w;
         });
@@ -171,14 +171,12 @@ class PuzzleManager {
       if (!clone) continue;
 
       let type = 'move';
-      if (
-        rec.width !== rec.length &&
-        Math.random() < this.diffConfig.chanceToRotate
-      ) {
+      if (rec.width !== rec.length && Math.random() < this.diffConfig.chanceToRotate) {
         type = 'rotate';
       } else if (
         rec.width * rec.length <= 9 &&
         rec.baseLayer > 1 &&
+        !this._hasAbove(this.builderA.grid, rec) &&
         Math.random() < this.diffConfig.chanceToMakeMissing
       ) {
         type = 'missing';
@@ -186,16 +184,26 @@ class PuzzleManager {
 
       const res = this._applyDiffToClone(type, rec, clone, bounds);
       if (res && this._isActuallyDifferent(rec.mesh, res.meshes)) {
-        this.diffInfo = { type: res.type, recId: rec.id };
+        const deltaPos = res.targetPos
+          ? res.targetPos.clone().sub(rec.mesh.position)
+          : new THREE.Vector3(0, 0, 0);
+        const deltaRot = res.targetRot !== undefined
+          ? (res.targetRot - rec.mesh.rotation.y)
+          : 0;
+
+        this.diffInfo = {
+          type: res.type,
+          recId: rec.id,
+          deltaPos,
+          deltaRot,
+        };
         this.diffMeshes = res.meshes;
         success = true;
       }
     }
 
     if (!success) {
-      console.error(
-        'Failed to create a valid difference. Highlighting first available candidate.'
-      );
+      console.error('Failed to create a valid difference. Highlighting first available candidate.');
       const firstCand = candidates[0]?.rec;
       if (firstCand) {
         this.diffMeshes = [firstCand.mesh, this._cloneById.get(firstCand.id)];
@@ -204,17 +212,14 @@ class PuzzleManager {
       }
     }
   }
+
   _applyDiffToClone(type, recA, clone, bounds) {
-    // FIX: Reset clone's transform to match the original's. This prevents
-    // transform accumulation if this function is called multiple times on the same
-    // piece in a single difference-finding attempt, which could lead to non-visual
-    // differences like a 180-degree rotation.
     clone.position.copy(recA.mesh.position);
     clone.rotation.copy(recA.mesh.rotation);
 
     const spacing = this.builderA.config.studSpacingMM;
     const gridB = this.gridB;
-    const analyzer = new SupportAnalyzer({});
+    const analyzer = this.supportAnalyzer;
 
     const setPosFromAnchor = (mesh, ax, az, w, l, baseLayer) => {
       const localCenterX = ax - bounds.x + w / 2;
@@ -223,6 +228,7 @@ class PuzzleManager {
       const worldZ = (localCenterZ - bounds.length / 2) * spacing;
       const baseY = this.builderA._worldYForLayer(baseLayer);
       mesh.position.set(worldX, baseY, worldZ);
+      return mesh.position.clone();
     };
 
     const recB = {
@@ -238,8 +244,33 @@ class PuzzleManager {
     gridB.unmarkStuds(recB);
 
     if (type === 'missing') {
+      const bricksOnTop = this.builderA._findBricksDirectlyOnTop(recA);
+      let causesCollapse = false;
+      for (const orphan of bricksOnTop) {
+        const sup = gridB.getSupportedStuds(orphan.anchorX, orphan.anchorZ, orphan.baseLayer, orphan.width, orphan.length);
+        const evalRes = analyzer.evaluateSupport({
+          width: orphan.width,
+          length: orphan.length,
+          supportedCoords: sup.coords,
+          anchorX: orphan.anchorX,
+          anchorZ: orphan.anchorZ,
+        });
+        if (!evalRes.ok) {
+          causesCollapse = true;
+          break;
+        }
+      }
+      if (causesCollapse) {
+        gridB.markStuds(recB);
+        return null;
+      }
       this.groupB.remove(clone);
-      return { type: 'missing', meshes: [recA.mesh] };
+      return {
+        type: 'missing',
+        meshes: [recA.mesh],
+        targetPos: recA.mesh.position.clone(),
+        targetRot: recA.mesh.rotation.y,
+      };
     }
 
     if (type === 'move') {
@@ -247,6 +278,11 @@ class PuzzleManager {
       for (let d = 1; d <= this.diffConfig.maxMoveDistance; d++) {
         tries.push([d, 0], [-d, 0], [0, d], [0, -d]);
         tries.push([d, d], [d, -d], [-d, d], [-d, -d]);
+      }
+
+      for (let i = tries.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tries[i], tries[j]] = [tries[j], tries[i]];
       }
 
       for (const [dx, dz] of tries) {
@@ -260,47 +296,38 @@ class PuzzleManager {
         ) {
           continue;
         }
-        if (
-          !gridB.studsAreFree(
-            ax,
-            az,
-            recA.baseLayer,
-            recA.width,
-            recA.length,
-            recA.heightUnits
-          )
-        )
+
+        const calculatedBase = gridB.calcBaseLayerForFootprint(ax, az, recA.width, recA.length);
+        if (calculatedBase !== recA.baseLayer) {
           continue;
-        if (recA.baseLayer > 1) {
-          const sup = gridB.getSupportedStuds(
-            ax,
-            az,
-            recA.baseLayer,
-            recA.width,
-            recA.length
-          );
-          if (
-            !analyzer.evaluateSupport({
-              width: recA.width,
-              length: recA.length,
-              supportedCoords: sup.coords,
-              anchorX: ax,
-              anchorZ: az,
-            }).ok
-          )
-            continue;
         }
-        setPosFromAnchor(
-          clone,
-          ax,
-          az,
-          recA.width,
-          recA.length,
-          recA.baseLayer
-        );
+
+        if (!gridB.studsAreFree(ax, az, recA.baseLayer, recA.width, recA.length, recA.heightUnits)) {
+          continue;
+        }
+
+        if (recA.baseLayer > 1) {
+          const sup = gridB.getSupportedStuds(ax, az, recA.baseLayer, recA.width, recA.length);
+          if (!analyzer.evaluateSupport({
+            width: recA.width,
+            length: recA.length,
+            supportedCoords: sup.coords,
+            anchorX: ax,
+            anchorZ: az,
+          }).ok) {
+            continue;
+          }
+        }
+
+        const targetPos = setPosFromAnchor(clone, ax, az, recA.width, recA.length, recA.baseLayer);
         const newRecB = { ...recB, anchorX: ax, anchorZ: az };
         gridB.markStuds(newRecB);
-        return { type: 'move', meshes: [recA.mesh, clone] };
+        return {
+          type: 'move',
+          meshes: [recA.mesh, clone],
+          targetPos,
+          targetRot: clone.rotation.y,
+        };
       }
       gridB.markStuds(recB);
       return null;
@@ -316,32 +343,23 @@ class PuzzleManager {
       ax = Math.max(bounds.x, Math.min(bounds.x + bounds.width - newW, ax));
       az = Math.max(bounds.z, Math.min(bounds.z + bounds.length - newL, az));
 
-      if (
-        gridB.studsAreFree(ax, az, recA.baseLayer, newW, newL, recA.heightUnits)
-      ) {
+      const calculatedBase = gridB.calcBaseLayerForFootprint(ax, az, newW, newL);
+      if (calculatedBase === recA.baseLayer && gridB.studsAreFree(ax, az, recA.baseLayer, newW, newL, recA.heightUnits)) {
         if (recA.baseLayer > 1) {
-          const sup = gridB.getSupportedStuds(
-            ax,
-            az,
-            recA.baseLayer,
-            newW,
-            newL
-          );
-          if (
-            !analyzer.evaluateSupport({
-              width: newW,
-              length: newL,
-              supportedCoords: sup.coords,
-              anchorX: ax,
-              anchorZ: az,
-            }).ok
-          ) {
+          const sup = gridB.getSupportedStuds(ax, az, recA.baseLayer, newW, newL);
+          if (!analyzer.evaluateSupport({
+            width: newW,
+            length: newL,
+            supportedCoords: sup.coords,
+            anchorX: ax,
+            anchorZ: az,
+          }).ok) {
             gridB.markStuds(recB);
             return null;
           }
         }
         clone.rotation.y += Math.PI / 2;
-        setPosFromAnchor(clone, ax, az, newW, newL, recA.baseLayer);
+        const targetPos = setPosFromAnchor(clone, ax, az, newW, newL, recA.baseLayer);
         const newRecB = {
           ...recB,
           anchorX: ax,
@@ -350,7 +368,12 @@ class PuzzleManager {
           length: newL,
         };
         gridB.markStuds(newRecB);
-        return { type: 'rotate', meshes: [recA.mesh, clone] };
+        return {
+          type: 'rotate',
+          meshes: [recA.mesh, clone],
+          targetPos,
+          targetRot: clone.rotation.y,
+        };
       }
       gridB.markStuds(recB);
       return null;
@@ -359,6 +382,7 @@ class PuzzleManager {
     gridB.markStuds(recB);
     return null;
   }
+
   _hasAbove(grid, rec) {
     const topLayer = rec.baseLayer + rec.heightUnits - 1;
     for (let w = 0; w < rec.width; w++) {
@@ -374,11 +398,12 @@ class PuzzleManager {
     }
     return false;
   }
+
   _isActuallyDifferent(meshA, meshesToCheck) {
     const epsPos = 0.001,
       epsRot = 0.001;
     if (meshesToCheck.length === 1) {
-      return true; // "missing" case
+      return true;
     }
     const [mA, mB] = meshesToCheck;
     if (!mA || !mB) return true;
@@ -387,7 +412,6 @@ class PuzzleManager {
       Math.abs((mA.rotation.y - mB.rotation.y) % (Math.PI * 2)) > epsRot;
     return posDiff || rotDiff;
   }
-
 }
 
 globalThis.PuzzleManager = PuzzleManager;

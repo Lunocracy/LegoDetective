@@ -4,6 +4,7 @@
     "src/LegoFun.js"
   ],
   "local": [
+    "src/SoundFX.js",
     "src/AnimationManager.js",
     "src/LayoutManager.js",
     "src/GameUI.js",

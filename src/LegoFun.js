@@ -66,16 +66,19 @@ class LegoFun {
     if (this.rootElement) this.destroy();
 
     this.env = env;
-    const parentElement = env?.container || document.getElementById('app-root') || document.body;
+    const parentElement = env.container;
 
-    if (parentElement === document.body) {
-      document.documentElement.style.height = '100%';
-      document.documentElement.style.width = '100%';
-      document.documentElement.style.margin = '0';
-      document.body.style.height = '100%';
-      document.body.style.width = '100%';
-      document.body.style.margin = '0';
-    }
+    document.documentElement.style.height = '100%';
+    document.documentElement.style.width = '100%';
+    document.documentElement.style.margin = '0';
+    document.documentElement.style.padding = '0';
+    document.documentElement.style.overflow = 'hidden';
+
+    document.body.style.height = '100%';
+    document.body.style.width = '100%';
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.overflow = 'hidden';
 
     parentElement.style.position = 'relative';
     parentElement.style.width = '100%';
@@ -130,7 +133,6 @@ class LegoFun {
       this.app.scene.background = null;
     }
 
-    // Clean neutral studio lights to keep Lego colors pure and vibrant
     const THREE = this.app.THREE;
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x22272e, 1.1);
     hemiLight.position.set(0, 500, 0);

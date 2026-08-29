@@ -32,7 +32,7 @@ class GameController {
     this.diffConfig = {
       maxMoveDistance: 3,
       allowBuriedDifferenceChance: 0.15,
-      chanceToRotate: 0.4,
+      chanceToRotate: 0.45,
       chanceToMakeMissing: 0.15,
     };
     this.buildConfig = {
@@ -66,7 +66,7 @@ class GameController {
       { item: [4, 6], weight: 1 },
     ];
 
-    // Clean, vibrant iconic Lego plastic colors (no brown, no black)
+    // Clean, vibrant iconic Lego plastic colors
     this.colorPool = [
       0xee272c, // Bright Red
       0xffd700, // Bright Yellow
@@ -267,28 +267,41 @@ class GameController {
       this._puzzleEnding = true;
       this.score += this.rewards.correct;
       this.ui.disableAllButtons(true);
+
+      const savedDiffInfo = this.diffInfo;
+      const recA = this.builderA.getBrickById(clickedRecId);
+      const meshA = recA ? recA.mesh : null;
+      const meshB = this._cloneById.get(clickedRecId);
+
       this.diffInfo = null;
 
-      this.animationManager.startFlash(this.diffMeshes, {
-        duration: 2.0,
-        lift: true,
-        color: 0x00ff00,
-        pulseCount: 4,
+      if (globalThis.soundFX) {
+        globalThis.soundFX.playSolveSuccess();
+      }
+
+      // Trigger the anti-phase alternating difference animation
+      this.animationManager.startAlternatingDiffAnimation({
+        meshA,
+        meshB,
+        diffInfo: savedDiffInfo,
+        duration: 2.6,
+        cycles: 3,
       });
 
       setTimeout(() => {
         this.ui.setScore(this.score);
-        this.ui.setMessage(`Correct! +${this.rewards.correct} points.`, 2200);
-      }, 400);
+        this.ui.setMessage(`Correct! +${this.rewards.correct} points.`, 2400);
+      }, 300);
 
-      setTimeout(() => this.createNewPair(), 2500);
+      // Advance to the next puzzle after the alternating dance completes
+      setTimeout(() => this.createNewPair(), 2800);
     } else {
       const { doomedBricks, targetWasHit } =
         this._getChainReactionTargets(clickedRec);
       this._activeAnimations = doomedBricks.length;
 
       doomedBricks.forEach((brick, index) =>
-        this._triggerChainReactionAnimation(brick, index * 120)
+        this._triggerChainReactionAnimation(brick, index * 110, index)
       );
 
       if (targetWasHit) {
@@ -342,6 +355,8 @@ class GameController {
     const rec = this.builderA.getBrickById(this.diffInfo.recId);
     if (!rec) return;
 
+    if (globalThis.soundFX) globalThis.soundFX.playCheatTone();
+
     if (this.cheatCount === undefined) {
       this.cheatCount = 0;
     }
@@ -366,22 +381,25 @@ class GameController {
       const penalty = Math.max(1, this.penalties.reveal - 2);
       this.score -= penalty;
       this.ui.setScore(this.score);
-      this.ui.setMessage(`Cheat 3: Target highlighted in scene! -${penalty} pts.`, 2000);
+      this.ui.setMessage(`Cheat 3: Target movement revealed! -${penalty} pts.`, 2500);
 
       this.ui.disableAllButtons(true);
 
-      this.animationManager.startFlash(this.diffMeshes, {
-        duration: 1.5,
-        lift: false,
-        color: 0xff00ff,
-        pulseCount: 5,
-      });
+      const meshA = rec.mesh;
+      const meshB = this._cloneById.get(rec.id);
 
-      setTimeout(() => {
-        this.ui.enableAllButtons(true);
-        this.ui.enableReveal(true);
-        this.ui.setMessage('Find and click the different brick.', 3000);
-      }, 1500);
+      this.animationManager.startAlternatingDiffAnimation({
+        meshA,
+        meshB,
+        diffInfo: this.diffInfo,
+        duration: 2.2,
+        cycles: 2,
+        onComplete: () => {
+          this.ui.enableAllButtons(true);
+          this.ui.enableReveal(true);
+          this.ui.setMessage('Find and click the different brick.', 3000);
+        },
+      });
     }
   }
 
@@ -517,7 +535,7 @@ class GameController {
     return { doomedBricks: Array.from(doomed), targetWasHit };
   }
 
-  _triggerChainReactionAnimation(recordToDestroy, delay) {
+  _triggerChainReactionAnimation(recordToDestroy, delay, cascadeIndex = 0) {
     setTimeout(() => {
       if (this._activeAnimations > 0) this._activeAnimations--;
 
@@ -525,8 +543,10 @@ class GameController {
       if (!recA) return;
       const cloneB = this._cloneById.get(recordToDestroy.id);
 
+      const isTarget = !!(this.diffInfo && recA.id === this.diffInfo.recId);
       let explosionOptions = {};
-      if (this.diffInfo && recA.id === this.diffInfo.recId) {
+
+      if (isTarget) {
         explosionOptions = {
           count: 150,
           sizeMultiplier: 1.8,
@@ -537,6 +557,10 @@ class GameController {
           color: 0xff0000,
           pulseCount: 2,
         });
+      }
+
+      if (globalThis.soundFX) {
+        globalThis.soundFX.playExplosion(cascadeIndex, isTarget);
       }
 
       this.animationManager.createExplosion(recA.mesh, recA, explosionOptions);
